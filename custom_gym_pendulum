@@ -1,0 +1,109 @@
+import gym
+from gym import spaces
+import numpy as np
+from scipy.integrate import solve_ivp
+
+class InvertedPendulumEnv(gym.Env):
+    """ Custom Inverted Pendulum Environment """
+
+    def __init__(self):
+        super(InvertedPendulumEnv, self).__init__()
+
+        # Define action space: continuous force (-10N to 10N)
+        self.action_space = spaces.Box(low=-10.0, high=10.0, shape=(1,), dtype=np.float32)
+
+        # Define state space: [cart position, velocity, pole angle, angular velocity]
+        self.observation_space = spaces.Box(
+            low=np.array([-2.4, -10, -np.pi, -10]),
+            high=np.array([2.4, 10, np.pi, 10]),
+            dtype=np.float32
+        )
+
+        # Constants (Cart-Pole system)
+        self.g = 9.81     # Gravity (m/s^2)
+        self.m_p = 0.1    # Pendulum mass (kg)
+        self.m_c = 1.0    # Cart mass (kg)
+        self.l = 0.5      # Pendulum length (m)
+        self.dt = 0.02    # Time step (s)
+
+        # Initial state
+        self.state = None
+        self.reset()
+
+    def reset(self):
+        """ Reset environment to initial state """
+        self.state = np.array([0, 0, np.pi + np.random.uniform(-0.1, 0.1), 0], dtype=np.float32)
+        return self.state
+
+    def step(self, action):
+        """ Apply force and update the system """
+        action = np.clip(action, -10, 10)[0]  # Ensure valid action
+
+        # Solve dynamics for dt using numerical integration
+        sol = solve_ivp(self._dynamics, [0, self.dt], self.state, args=(action,))
+        self.state = sol.y[:, -1]
+
+        # Reward function: Reward for keeping pendulum upright
+        reward = np.exp(-abs(self.state[2]))  # Exponential penalty for angle deviation
+
+        # Done condition: If cart moves out of bounds or pendulum falls
+        done = abs(self.state[0]) > 2.4 or abs(self.state[2]) > np.pi / 2
+
+        return self.state, reward, done, {}
+
+    def _dynamics(self, t, state, force):
+        """ Inverted Pendulum Dynamics using Newton-Euler Equations """
+        x, x_dot, theta, theta_dot = state
+        sin_theta, cos_theta = np.sin(theta), np.cos(theta)
+
+        # System equations
+        total_mass = self.m_c + self.m_p
+        pendulum_inertia = self.m_p * self.l ** 2
+        common_factor = (force + self.m_p * self.l * theta_dot ** 2 * sin_theta) / total_mass
+        theta_acc = (self.g * sin_theta - cos_theta * common_factor) / (self.l * (4 / 3 - (self.m_p * cos_theta ** 2) / total_mass))
+        x_acc = common_factor - (self.m_p * self.l * theta_acc * cos_theta) / total_mass
+
+        return [x_dot, x_acc, theta_dot, theta_acc]
+
+    def render(self, mode='human'):
+        """ Print state (Replace with animation if needed) """
+        print(f"Cart Pos: {self.state[0]:.2f}, Angle: {self.state[2]:.2f} rad")
+
+    def close(self):
+        """ Cleanup (if needed) """
+        pass
+
+# Test the environment
+env = InvertedPendulumEnv()
+state = env.reset()
+
+
+for _ in range(200):
+    action = np.array([env.action_space.sample()])  # Random action
+    next_state, reward, done, _ = env.step(action)
+    env.render()
+    if done:
+        print("Episode Ended")
+        break
+
+# env.close()
+
+
+from stable_baselines3 import PPO
+
+env = InvertedPendulumEnv()
+model = PPO("MlpPolicy", env, verbose=1)
+
+# Train agent
+model.learn(total_timesteps=100000)
+
+# Test trained agent
+obs = env.reset()
+for _ in range(200):
+    action, _ = model.predict(obs)
+    obs, reward, done, _ = env.step(action)
+    env.render()
+    if done:
+        break
+
+env.close()
