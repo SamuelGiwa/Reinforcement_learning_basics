@@ -6,23 +6,26 @@ class CustomGridEnv(gym.Env):
     """Custom Grid World Environment"""
 
     def __init__(self):
-        super(CustomGridEnv, self).__init__()
+        super().__init__()
 
-        # Define action space: [0 = Up, 1 = Down, 2 = Left, 3 = Right]
+        # Action space: [0 = Up, 1 = Down, 2 = Left, 3 = Right]
         self.action_space = spaces.Discrete(4)
 
-        # Define state space: 5x5 grid (agent's position)
-        self.observation_space = spaces.Discrete(25)  # 5x5 = 25 states
+        # state space: 5x5 grid (agent's position)
+        self.grid_size = 6
+        
+        self.observation_space = spaces.Discrete(self.grid_size^2)  # 5x5 = 25 states
 
-        # Define grid size
-        self.grid_size = 5
+        # grid size
+        
 
-        # Define start and goal positions
+        # start and goal positions
         self.start_pos = (0, 0)  # Top-left
-        self.goal_pos = (4, 4)   # Bottom-right
+        self.goal_pos = (5, 5)   # Bottom-right
 
         # Initialize state
         self.agent_pos = self.start_pos
+        
 
     def reset(self):
         """Resets the environment to the initial state."""
@@ -37,12 +40,11 @@ class CustomGridEnv(gym.Env):
         if action == 0:  # Move Up
             x = max(0, x - 1)
         elif action == 1:  # Move Down
-            x = min(self.grid_size - 1, x + 1)
+            x = min(5, x + 1)
         elif action == 2:  # Move Left
-            y = max(0, y - 1)
+            y =  max(0, y - 1)
         elif action == 3:  # Move Right
-            y = min(self.grid_size - 1, y + 1)
-
+            y = min(5, y + 1)
         # Update agent position
         self.agent_pos = (x, y)
 
@@ -83,12 +85,12 @@ env = CustomGridEnv()
 # state = env.reset()
 env.render()
 
-# for _ in range(10):  # Take 10 random steps
-#     action = env.action_space.sample()
-#     next_state, reward, done, _ = env.step(action)
-#     env.render()
-#     if done:
-#         print("Goal reached!")
-#         break
+for _ in range(100):  
+    action = env.action_space.sample()
+    next_state, reward, done, _ = env.step(action)
+    env.render()
+    if done:
+        print("Goal reached!")
+        break
 
-# env.close()
+env.close()
